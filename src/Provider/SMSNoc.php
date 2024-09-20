@@ -2,16 +2,16 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use GuzzleHttp\Exception\GuzzleException;
 use Xenon\LaravelBDSms\Handler\RenderException;
 use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class BoomCast extends AbstractProvider
+class SMSNoc extends AbstractProvider
 {
-    private string $apiEndpoint = 'https://api.boom-cast.com/boomcast/WebFramework/boomCastWebService/OTPMessage.php';
+    private string $apiEndpoint = 'https://app.smsnoc.com/api/v3/sms/send';
+
     /**
-     * BoomCast Constructor
+     * Infobip Constructor
      * @param Sender $sender
      * @version v1.0.32
      * @since v1.0.31
@@ -22,34 +22,46 @@ class BoomCast extends AbstractProvider
     }
 
     /**
+     * @param $config
+     * @return string[]
+     * @version v1.0.32
+     * @since v1.0.31
+     */
+    private function getHeaders($config): array
+    {
+        return [
+            'Authorization' => 'Bearer ' . $config['bearer_token'],
+            'Content-Type' => 'application/json',
+        ];
+    }
+
+    /**
      * @return false|string
-     * @throws GuzzleException
      * @throws RenderException
-     * @version v1.0.37
+     * @version v1.0.32
      * @since v1.0.31
      */
     public function sendRequest()
     {
-        $number = $this->senderObject->getMobile();
-        $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
         $queue = $this->senderObject->getQueue();
         $queueName = $this->senderObject->getQueueName();
         $tries=$this->senderObject->getTries();
         $backoff=$this->senderObject->getBackoff();
+        $text = $this->senderObject->getMessage();
+        $number = $this->senderObject->getMobile();
 
         $query = [
-            "masking" => $config['masking'],
-            "userName" => $config['username'],
-            "password" => $config['password'],
-            "MsgType" => "TEXT",
-            "receiver" => $number,
-            "message" => $text,
+            'recipient' => '+88'.$number,
+            'message' => $text,
+            'type' => "plain",
+            'sender_id' => $config['sender_id'],
         ];
 
         $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+        $requestObject->setHeaders($this->getHeaders($config))->setContentTypeJson(true);
 
-        $response = $requestObject->get();
+        $response = $requestObject->post();
         if ($queue) {
             return true;
         }
@@ -71,16 +83,11 @@ class BoomCast extends AbstractProvider
     {
         $config = $this->senderObject->getConfig();
 
-        if (!array_key_exists('masking', $config)) {
-            throw new RenderException('masking key is absent in configuration');
+        if (!array_key_exists('sender_id', $config)) {
+            throw new RenderException('sender_id key is absent in configuration');
         }
-
-        if (!array_key_exists('username', $config)) {
-            throw new RenderException('username key is absent in configuration');
-        }
-
-        if (!array_key_exists('password', $config)) {
-            throw new RenderException('password key is absent in configuration');
+        if (!array_key_exists('bearer_token', $config)) {
+            throw new RenderException('bearer_token key is absent in configuration');
         }
     }
 }

@@ -11,13 +11,15 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class Banglalink extends AbstractProvider
 {
+    private string $apiEndpoint = 'https://vas.banglalink.net/sendSMS/sendSMS';
+
     /**
      * Banglalink constructor.
      * @param Sender $sender
@@ -29,29 +31,32 @@ class Banglalink extends AbstractProvider
 
     /**
      * Send Request To Api and Send Message
-     * @throws GuzzleException
+     * @throws RenderException
      */
     public function sendRequest()
     {
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
 
-        $client = new Client([
-            'base_uri' => 'https://vas.banglalink.net/sendSMS/sendSMS',
-            'timeout' => 10.0,
-            'verify' => false,
-        ]);
+        $formParams = [
+            'userID' => $config['userID'],
+            'passwd' => $config['passwd'],
+            'sender' => $config['sender'],
+            'msisdn' => $number,
+            'message' => $text,
+        ];
 
-        $response = $client->request('POST', '', [
-            'form_params' => [
-                'userID' => $config['userID'],
-                'passwd' => $config['passwd'],
-                'sender' => $config['sender'],
-                'msisdn' => $number,
-                'message' => $text,
-            ]
-        ]);
+        $requestObject = new Request($this->apiEndpoint, [], $queue, [], $queueName,$tries,$backoff);
+        $requestObject->setFormParams($formParams);
+        $response = $requestObject->post();
+        if ($queue) {
+            return true;
+        }
 
         $body = $response->getBody();
         $smsResult = $body->getContents();

@@ -32,13 +32,13 @@ class DnsBd extends AbstractProvider
         // TODO: Implement sendRequest() method.
     }
 
-    public function generateReport(): JsonResponse
+    public function generateReport($result, $data): JsonResponse
     {
 
     }
 
     /**
-     * @return mixed
+     * @return void
      */
     public function errorException()
     {

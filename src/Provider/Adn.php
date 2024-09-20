@@ -14,10 +14,12 @@ namespace Xenon\LaravelBDSms\Provider;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class Adn extends AbstractProvider
 {
+    private string $apiEndpoint = 'https://portal.adnsms.com';
     /**
      * Adn constructor.
      * @param Sender $sender
@@ -35,38 +37,32 @@ class Adn extends AbstractProvider
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
+        $query = [];
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [
+            'Accept' => 'application/json'
+        ], $queueName,$tries,$backoff);
 
-        $client = new Client([
-            'timeout' => 10.0,
-            'verify' => false
+        $requestObject->setFormParams([
+            'api_key' => $config['api_key'],
+            'type' => $config['type'],
+            'senderid' => $config['senderid'],
+            'mobile' => $number,
+            'message_body' => $text,
         ]);
-
-        try {
-            $response = $client->request('POST', 'https://portal.adnsms.com',
-                [
-                    'form_params' => [
-                        'api_key' => $config['api_key'],
-                        'type' => $config['type'],
-                        'senderid' => $config['senderid'],
-                        'mobile' => $number,
-                        'message_body' => $text,
-                    ],
-                    'headers' => [
-                        'Accept' => 'application/json'
-                    ],
-                    'debug' => false
-                ]);
-        } catch (GuzzleException $e) {
-            return $e->getMessage();
+        $response = $requestObject->post();
+        if ($queue) {
+            return true;
         }
-
         $body = $response->getBody();
         $smsResult = $body->getContents();
 
         $data['number'] = $number;
         $data['message'] = $text;
-        $report = $this->generateReport($smsResult, $data);
-        return $report->getContent();
+        return $this->generateReport($smsResult, $data)->getContent();
     }
 
     /**

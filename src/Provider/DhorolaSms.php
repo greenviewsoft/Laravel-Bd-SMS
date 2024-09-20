@@ -1,7 +1,7 @@
 <?php
 /*
- *  Last Modified: 6/29/21, 12:06 AM
- *  Copyright (c) 2021
+ *  Last Modified: 09/16/24, 12:14 AM
+ *  Copyright (c) 2024
  *  -created by Ariful Islam
  *  -All Rights Preserved By
  *  -If you have any query then knock me at
@@ -11,18 +11,21 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use GuzzleHttp\Exception\GuzzleException;
 use Xenon\LaravelBDSms\Handler\ParameterException;
 use Xenon\LaravelBDSms\Handler\RenderException;
 use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class Metronet extends AbstractProvider
+/**
+ * Dhorola Class
+ * api endpoint https://api.dhorolasms.net/smsapiv3
+ */
+class DhorolaSms extends AbstractProvider
 {
-    private string $apiEndpoint = '202.164.208.212/smsnet/bulk/api';
+    private string $apiEndpoint = 'https://api.dhorolasms.net/smsapiv3';
 
     /**
-     * MentroNet constructor.
+     * DhorolaSms constructor.
      * @param Sender $sender
      */
     public function __construct(Sender $sender)
@@ -32,8 +35,6 @@ class Metronet extends AbstractProvider
 
     /**
      * Send Request To Api and Send Message
-     * @return bool|string
-     * @throws GuzzleException
      * @throws RenderException
      */
     public function sendRequest()
@@ -43,18 +44,27 @@ class Metronet extends AbstractProvider
         $config = $this->senderObject->getConfig();
         $queue = $this->senderObject->getQueue();
         $queueName = $this->senderObject->getQueueName();
-        $tries=$this->senderObject->getTries();
-        $backoff=$this->senderObject->getBackoff();
+        $tries = $this->senderObject->getTries();
+        $backoff = $this->senderObject->getBackoff();
 
         $query = [
-            'api_key' => $config['api_key'],
-            'mask' => $config['mask'],
-            'recipient' => $number,
-            'message' => $text,
+            'apikey' => $config['apikey'],
+            'sender' => $config['sender'],
+            'msisdn' => $number,
+            'smstext' => $text,
         ];
 
-        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
-        $response = $requestObject->get();
+        if (is_array($number)) {
+            $query['msisdn'] = implode(',', $number);
+        }
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'verify' => false,
+        ];
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName, $tries, $backoff);
+        $requestObject->setHeaders($headers)->setContentTypeJson(true);
+        $response = $requestObject->post();
         if ($queue) {
             return true;
         }
@@ -72,11 +82,12 @@ class Metronet extends AbstractProvider
      */
     public function errorException()
     {
-        if (!array_key_exists('api_key', $this->senderObject->getConfig())) {
-            throw new ParameterException('api_key is absent in configuration');
+        if (!array_key_exists('apikey', $this->senderObject->getConfig())) {
+            throw new ParameterException('apikey key is absent in configuration');
         }
-        if (!array_key_exists('mask', $this->senderObject->getConfig())) {
-            throw new ParameterException('mask key is absent in configuration');
+        if (!array_key_exists('sender', $this->senderObject->getConfig())) {
+            throw new ParameterException('sender key is absent in configuration');
         }
+
     }
 }

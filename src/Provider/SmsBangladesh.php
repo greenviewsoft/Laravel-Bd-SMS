@@ -2,16 +2,17 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use GuzzleHttp\Exception\GuzzleException;
 use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Helper\Helper;
 use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class BoomCast extends AbstractProvider
+class SmsBangladesh extends AbstractProvider
 {
-    private string $apiEndpoint = 'https://api.boom-cast.com/boomcast/WebFramework/boomCastWebService/OTPMessage.php';
+    private string $apiEndpoint = 'https://panel.smsbangladesh.com/api';
+
     /**
-     * BoomCast Constructor
+     * SmsBangladesh Constructor
      * @param Sender $sender
      * @version v1.0.32
      * @since v1.0.31
@@ -23,41 +24,48 @@ class BoomCast extends AbstractProvider
 
     /**
      * @return false|string
-     * @throws GuzzleException
      * @throws RenderException
-     * @version v1.0.37
+     * @version v1.0.32
      * @since v1.0.31
      */
     public function sendRequest()
     {
-        $number = $this->senderObject->getMobile();
+        $mobile = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
         $queue = $this->senderObject->getQueue();
         $queueName = $this->senderObject->getQueueName();
-        $tries=$this->senderObject->getTries();
-        $backoff=$this->senderObject->getBackoff();
+        $tries = $this->senderObject->getTries();
+        $backoff = $this->senderObject->getBackoff();
 
-        $query = [
-            "masking" => $config['masking'],
-            "userName" => $config['username'],
+        $formParams = [
+            "user" => $config['user'],
             "password" => $config['password'],
-            "MsgType" => "TEXT",
-            "receiver" => $number,
-            "message" => $text,
+            "from" => $config['from'],
+            "text" => urlencode($text),
         ];
 
-        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+        if (!is_array($mobile)) {
+            $formParams['to'] = Helper::ensureNumberStartsWith88($mobile);
+        } else {
+            foreach ($mobile as $element) {
+                $tempMobile[] = Helper::ensureNumberStartsWith88($element);
+            }
+            $formParams['to'] = implode(',', $tempMobile);
+        }
 
-        $response = $requestObject->get();
+        $requestObject = new Request($this->apiEndpoint, [], $queue, [], $queueName, $tries, $backoff);
+        $requestObject->setFormParams($formParams);
+        $response = $requestObject->post(false, 60);
         if ($queue) {
             return true;
         }
 
+
         $body = $response->getBody();
         $smsResult = $body->getContents();
 
-        $data['number'] = $number;
+        $data['number'] = $mobile;
         $data['message'] = $text;
         return $this->generateReport($smsResult, $data)->getContent();
     }
@@ -71,16 +79,16 @@ class BoomCast extends AbstractProvider
     {
         $config = $this->senderObject->getConfig();
 
-        if (!array_key_exists('masking', $config)) {
-            throw new RenderException('masking key is absent in configuration');
-        }
-
-        if (!array_key_exists('username', $config)) {
-            throw new RenderException('username key is absent in configuration');
+        if (!array_key_exists('user', $config)) {
+            throw new RenderException('user key is absent in configuration');
         }
 
         if (!array_key_exists('password', $config)) {
             throw new RenderException('password key is absent in configuration');
+        }
+
+        if (!array_key_exists('from', $config)) {
+            throw new RenderException('from key is absent in configuration');
         }
     }
 }

@@ -11,13 +11,16 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class AjuraTech extends AbstractProvider
 {
+    private string $apiEndpoint = 'https://smpp.revesms.com:7790/sendtext?json';
+
     /**
      * Ajuratech constructor.
      * @param Sender $sender
@@ -33,6 +36,7 @@ class AjuraTech extends AbstractProvider
      * Send Request To Api and Send Message
      * @return false|string
      * @throws GuzzleException
+     * @throws RenderException
      * @since v1.0.34
      * @version v1.0.34
      */
@@ -41,30 +45,30 @@ class AjuraTech extends AbstractProvider
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
+        $query = [
+            'apikey' => $config['apikey'],
+            'secretkey' => $config['secretkey'],
+            'callerID' => $config['callerID'],
+            'toUser' => $number,
+            'messageContent' => $text,
+        ];
 
-        $client = new Client([
-            'base_uri' => 'https://smpp.ajuratech.com:7790/sendtext?json',
-            'timeout' => 10.0,
-            'verify' => false
-        ]);
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+        $response = $requestObject->get();
+        if ($queue) {
+            return true;
+        }
 
-        $response = $client->request('GET', '', [
-            'query' => [
-
-                'apikey' => $config['apikey'],
-                'secretkey' => $config['secretkey'],
-                'callerID' => $config['callerID'],
-                'toUser' => $number,
-                'messageContent' => $text,
-            ]
-        ]);
         $body = $response->getBody();
         $smsResult = $body->getContents();
 
         $data['number'] = $number;
         $data['message'] = $text;
-        $report = $this->generateReport($smsResult, $data);
-        return $report->getContent();
+        return $this->generateReport($smsResult, $data)->getContent();
     }
 
     /**

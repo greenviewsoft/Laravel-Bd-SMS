@@ -11,12 +11,14 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use Xenon\LaravelBDSms\Facades\Request;
 use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class Ssl extends AbstractProvider
 {
+    private string $apiEndpoint = 'https://smsplus.sslwireless.com/api/v3/send-sms';
+
     /**
      * Ssl constructor.
      * @param Sender $sender
@@ -28,12 +30,17 @@ class Ssl extends AbstractProvider
 
     /**
      * Send Request To Api and Send Message
+     * @throws RenderException
      */
     public function sendRequest()
     {
         $mobile = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries = $this->senderObject->getTries();
+        $backoff = $this->senderObject->getBackoff();
 
         $query = [
             'api_token' => $config['api_token'],
@@ -43,13 +50,10 @@ class Ssl extends AbstractProvider
             'sms' => $text,
         ];
 
-        // $response = Request::get('https://smsplus.sslwireless.com/api/v3/send-sms', $query, false); //this for sending using get api.
-        if (is_array($mobile)) {
-
-            $response = Request::post('https://smsplus.sslwireless.com//api/v3/send-sms/bulk', $query);
-        } else {
-            $response = Request::post('https://smsplus.sslwireless.com/api/v3/send-sms', $query);
-
+        $requestObject = new Request($this->apiEndpoint . (is_array($mobile) ? '/bulk' : ''), $query, $queue, [], $queueName, $tries, $backoff);
+        $response = $requestObject->post();
+        if ($queue) {
+            return true;
         }
         $body = $response->getBody();
         $smsResult = $body->getContents();

@@ -3,13 +3,16 @@
 namespace Xenon\LaravelBDSms\Provider;
 
 use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Helper\Helper;
 use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class ElitBuzz extends AbstractProvider
+class WinText extends AbstractProvider
 {
+    private string $apiEndpoint = 'https://api.wintextbd.com/SingleSms';
+
     /**
-     * Elitbuzz Constructor
+     * WinText Constructor
      * @param Sender $sender
      * @version v1.0.32
      * @since v1.0.31
@@ -32,19 +35,28 @@ class ElitBuzz extends AbstractProvider
         $config = $this->senderObject->getConfig();
         $queue = $this->senderObject->getQueue();
         $queueName = $this->senderObject->getQueueName();
-        $tries=$this->senderObject->getTries();
-        $backoff=$this->senderObject->getBackoff();
+        $tries = $this->senderObject->getTries();
+        $backoff = $this->senderObject->getBackoff();
 
         $formParams = [
-            "api_key" => $config['api_key'],
-            "type" => "text",
-            "senderid" => $config['senderid'],
-            "contacts" => $mobile,
-            "msg" => urlencode($text),
+            "token" => $config['token'],
+            "messagetype" => $config['messagetype'] ?? 1,
+            "ismasking" => $config['ismasking'] ?? 'false',
+            "masking" => $config['masking'] ?? 'null',
+            "SMSText" => $text,
         ];
 
-        $requestUrl = $config['url'] . "/smsapi";
-        $requestObject = new Request($requestUrl, [], $queue, [], $queueName,$tries,$backoff);
+        if (!is_array($mobile)) {
+            $formParams['mobileno'] = Helper::ensureNumberStartsWith88($mobile);
+        } else {
+            /*foreach ($mobile as $element) {
+                $tempMobile[] = Helper::ensureNumberStartsWith88($element);
+            }
+            $formParams['mobileno'] = implode(',', $tempMobile);*/
+        }
+
+        //dd($this->apiEndpoint, $formParams);
+        $requestObject = new Request($this->apiEndpoint, [], $queue, [], $queueName, $tries, $backoff);
         $requestObject->setFormParams($formParams);
         $response = $requestObject->post(false, 60);
         if ($queue) {
@@ -69,16 +81,8 @@ class ElitBuzz extends AbstractProvider
     {
         $config = $this->senderObject->getConfig();
 
-        if (!array_key_exists('url', $config)) {
-            throw new RenderException('url key is absent in configuration');
-        }
-
-        if (!array_key_exists('api_key', $config)) {
-            throw new RenderException('api_key key is absent in configuration');
-        }
-
-        if (!array_key_exists('senderid', $config)) {
-            throw new RenderException('senderid key is absent in configuration');
+        if (!array_key_exists('token', $config)) {
+            throw new RenderException('token key is absent in configuration');
         }
     }
 }

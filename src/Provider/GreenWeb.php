@@ -11,12 +11,14 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use Xenon\LaravelBDSms\Facades\Request;
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class GreenWeb extends AbstractProvider
 {
+    private string $apiEndpoint = 'https://api.greenweb.com.bd/api.php?json';
+
     /**
      * GreenWeb constructor.
      * @param Sender $sender
@@ -34,6 +36,10 @@ class GreenWeb extends AbstractProvider
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
 
         $query = [
             'token' => $config['token'],
@@ -41,7 +47,12 @@ class GreenWeb extends AbstractProvider
             'message' => $text,
         ];
 
-        $response = Request::get('https://api.greenweb.com.bd/api.php?json', $query);
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+        $response = $requestObject->get();
+        if ($queue) {
+            return true;
+        }
+
         $body = $response->getBody();
         $smsResult = $body->getContents();
 

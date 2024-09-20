@@ -12,12 +12,13 @@
 namespace Xenon\LaravelBDSms\Provider;
 
 
-use Xenon\LaravelBDSms\Facades\Request;
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class BDBulkSms extends AbstractProvider
 {
+    private string $apiEndpoint = 'http://api.greenweb.com.bd/api2.php';
     /**
      * BDBulkSms constructor.
      * @param Sender $sender
@@ -35,13 +36,22 @@ class BDBulkSms extends AbstractProvider
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
 
         $query = [
             'token' => $config['token'],
             'to' => $number,
             'message' => $text,
         ];
-        $response = Request::get('http://api.greenweb.com.bd/api2.php', $query);
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+
+        $response = $requestObject->get();
+        if ($queue) {
+            return true;
+        }
 
         $body = $response->getBody();
         $smsResult = $body->getContents();
@@ -50,20 +60,6 @@ class BDBulkSms extends AbstractProvider
         $data['message'] = $text;
         return $this->generateReport($smsResult, $data)->getContent();
 
-    }
-
-    /**
-     * For mobile number
-     * @param $mobile
-     * @return string
-     */
-    private function formatNumber($mobile): string
-    {
-        if (is_array($mobile)) {
-            return implode(',', $mobile);
-        }
-
-        return $mobile;
     }
 
     /**

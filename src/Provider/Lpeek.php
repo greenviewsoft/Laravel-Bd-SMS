@@ -12,16 +12,18 @@
 namespace Xenon\LaravelBDSms\Provider;
 
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Helper\Helper;
 use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class Tense extends AbstractProvider
+class Lpeek extends AbstractProvider
 {
-    private string $apiEndpoint = 'http://sms.tense.com.bd/api-sendsms';
+    private string $apiEndpoint = 'https://sms.lpeek.com/API/sendSMS';
+
     /**
-     * Tense constructor.
+     * Lpeek constructor.
      * @param Sender $sender
-     * @since v1.0.25
      */
     public function __construct(Sender $sender)
     {
@@ -30,28 +32,37 @@ class Tense extends AbstractProvider
 
     /**
      * Send Request To Api and Send Message
-     * @since v1.0.25
+     * @throws RenderException
      */
     public function sendRequest()
     {
-        $number = $this->senderObject->getMobile();
+        $number = Helper::ensureNumberStartsWith88($this->senderObject->getMobile());
+
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
         $queue = $this->senderObject->getQueue();
         $queueName = $this->senderObject->getQueueName();
         $tries=$this->senderObject->getTries();
         $backoff=$this->senderObject->getBackoff();
-        $query = [
-            'user' => $config['user'],
-            'password' => $config['password'],
-            'campaign' => $config['campaign'],
-            'masking' => $config['masking'],
-            'number' => $number,
-            'text' => $text,
+
+        $data = [
+            'auth' => [
+                'acode' => $config['acode'],
+                'apiKey' => $config['apiKey'],
+            ],
+            'smsInfo' => [
+                'requestID' => $config['requestID'],
+                'message' => $text,
+                'is_unicode' => $config['is_unicode'] ?? 0,
+                'masking' => $config['masking'],
+                'msisdn' => $number,
+                'transactionType' => $config['transactionType'] ?? 'T',
+            ],
         ];
 
-        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
-        $response = $requestObject->get();
+        $requestObject = new Request($this->apiEndpoint, $data, $queue, [], $queueName,$tries,$backoff);
+        $requestObject->setContentTypeJson(true);
+        $response = $requestObject->post();
         if ($queue) {
             return true;
         }
@@ -66,18 +77,18 @@ class Tense extends AbstractProvider
 
     /**
      * @throws ParameterException
-     * @since v1.0.25
      */
     public function errorException()
     {
-        if (!array_key_exists('user', $this->senderObject->getConfig())) {
-            throw new ParameterException('user is absent in configuration');
+        if (!array_key_exists('acode', $this->senderObject->getConfig())) {
+            throw new ParameterException('acode is absent in configuration');
         }
-        if (!array_key_exists('password', $this->senderObject->getConfig())) {
-            throw new ParameterException('password key is absent in configuration');
+
+        if (!array_key_exists('apiKey', $this->senderObject->getConfig())) {
+            throw new ParameterException('apiKey key is absent in configuration');
         }
-        if (!array_key_exists('campaign', $this->senderObject->getConfig())) {
-            throw new ParameterException('campaign key is absent in configuration');
+        if (!array_key_exists('requestID', $this->senderObject->getConfig())) {
+            throw new ParameterException('requestID key is absent in configuration');
         }
         if (!array_key_exists('masking', $this->senderObject->getConfig())) {
             throw new ParameterException('masking key is absent in configuration');

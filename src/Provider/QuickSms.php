@@ -1,7 +1,7 @@
 <?php
 /*
- *  Last Modified: 6/29/21, 12:06 AM
- *  Copyright (c) 2021
+ *  Last Modified: 26/10/23, 10:40 PM
+ *  Copyright (c) 2023
  *  -created by Ariful Islam
  *  -All Rights Preserved By
  *  -If you have any query then knock me at
@@ -15,12 +15,12 @@ use Xenon\LaravelBDSms\Handler\RenderException;
 use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class MDL extends AbstractProvider
+class QuickSms extends AbstractProvider
 {
-    private string $apiEndpoint  = 'http://premium.mdlsms.com/smsapi';
+    private string $apiEndpoint = 'https://server1.quicksms.xyz/smsapi';
 
     /**
-     * MDL constructor.
+     * QuickSms constructor.
      * @param Sender $sender
      */
     public function __construct(Sender $sender)
@@ -30,11 +30,12 @@ class MDL extends AbstractProvider
 
     /**
      * Send Request To Api and Send Message
+     * @throws RenderException
      */
     public function sendRequest()
     {
+        $mobile = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
-        $number = $this->senderObject->getMobile();
         $config = $this->senderObject->getConfig();
         $queue = $this->senderObject->getQueue();
         $queueName = $this->senderObject->getQueueName();
@@ -43,22 +44,33 @@ class MDL extends AbstractProvider
 
         $query = [
             'api_key' => $config['api_key'],
-            'type' => $config['type'],
             'senderid' => $config['senderid'],
-            'contacts' => $number,
+            'contacts' => $mobile,
             'msg' => $text,
         ];
 
+        if (array_key_exists('type', $config)) {
+            $query ['type'] = $config['type'];
+        }
+
+        if (array_key_exists('scheduledDateTime', $config)) {
+            $query ['scheduledDateTime'] = $config['scheduledDateTime'];
+        }
+
+        if (is_array($mobile)) {
+            $query['contacts'] =  implode(',', $mobile);
+        }
+
         $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
-        $response = $requestObject->get();
+        $requestObject->setContentTypeJson(true);
+
+        $response = $requestObject->post();
         if ($queue) {
             return true;
         }
-
         $body = $response->getBody();
         $smsResult = $body->getContents();
-
-        $data['number'] = $number;
+        $data['number'] = $mobile;
         $data['message'] = $text;
         return $this->generateReport($smsResult, $data)->getContent();
     }
@@ -66,17 +78,13 @@ class MDL extends AbstractProvider
     /**
      * @throws RenderException
      */
-    public function errorException()
+    public function errorException(): void
     {
         if (!array_key_exists('api_key', $this->senderObject->getConfig())) {
-            throw new RenderException('api_key is absent in configuration');
-        }
-        if (!array_key_exists('type', $this->senderObject->getConfig())) {
-            throw new RenderException('type key is absent in configuration');
+            throw new RenderException('api_key key is absent in configuration');
         }
         if (!array_key_exists('senderid', $this->senderObject->getConfig())) {
             throw new RenderException('senderid key is absent in configuration');
         }
-
     }
 }

@@ -1,7 +1,7 @@
 <?php
 /*
- *  Last Modified: 6/29/21, 12:06 AM
- *  Copyright (c) 2021
+ *  Last Modified: 05/24/24, 12:06 AM
+ *  Copyright (c) 2023
  *  -created by Ariful Islam
  *  -All Rights Preserved By
  *  -If you have any query then knock me at
@@ -11,16 +11,17 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
+use Xenon\LaravelBDSms\Handler\ParameterException;
 use Xenon\LaravelBDSms\Handler\RenderException;
 use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class MDL extends AbstractProvider
+class ZamanIt extends AbstractProvider
 {
-    private string $apiEndpoint  = 'http://premium.mdlsms.com/smsapi';
+    private string $apiEndpoint = 'https://sms.zaman-it.com/api/sendsms';
 
     /**
-     * MDL constructor.
+     * ZamanIt constructor.
      * @param Sender $sender
      */
     public function __construct(Sender $sender)
@@ -30,27 +31,31 @@ class MDL extends AbstractProvider
 
     /**
      * Send Request To Api and Send Message
+     * @throws RenderException
      */
     public function sendRequest()
     {
-        $text = $this->senderObject->getMessage();
+
+
         $number = $this->senderObject->getMobile();
+        $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
         $queue = $this->senderObject->getQueue();
         $queueName = $this->senderObject->getQueueName();
-        $tries=$this->senderObject->getTries();
-        $backoff=$this->senderObject->getBackoff();
+        $tries = $this->senderObject->getTries();
+        $backoff = $this->senderObject->getBackoff();
 
         $query = [
             'api_key' => $config['api_key'],
             'type' => $config['type'],
             'senderid' => $config['senderid'],
-            'contacts' => $number,
-            'msg' => $text,
+            'phone' => $number,
+            'message' => $text,
         ];
 
-        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
-        $response = $requestObject->get();
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName, $tries, $backoff);
+
+        $response = $requestObject->post();
         if ($queue) {
             return true;
         }
@@ -58,25 +63,28 @@ class MDL extends AbstractProvider
         $body = $response->getBody();
         $smsResult = $body->getContents();
 
-        $data['number'] = $number;
+        $data['phone'] = $number;
         $data['message'] = $text;
         return $this->generateReport($smsResult, $data)->getContent();
     }
 
     /**
-     * @throws RenderException
+     * @throws ParameterException
      */
     public function errorException()
     {
         if (!array_key_exists('api_key', $this->senderObject->getConfig())) {
-            throw new RenderException('api_key is absent in configuration');
+            throw new ParameterException('api_key is absent in configuration');
         }
+
         if (!array_key_exists('type', $this->senderObject->getConfig())) {
-            throw new RenderException('type key is absent in configuration');
+            throw new ParameterException('type key is absent in configuration');
         }
+
         if (!array_key_exists('senderid', $this->senderObject->getConfig())) {
-            throw new RenderException('senderid key is absent in configuration');
+            throw new ParameterException('senderid key is absent in configuration');
         }
 
     }
+
 }

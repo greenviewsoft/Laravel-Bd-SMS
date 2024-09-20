@@ -11,15 +11,17 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
-class TwentyFourSmsBD extends AbstractProvider
+class RedmoItSms extends AbstractProvider
 {
+    private string $apiEndpoint = 'https://sms.redmoit.com/api/v3/sms/send';
+
     /**
-     * TwenforSmsBD constructor.
+     * DianaHost constructor.
      * @param Sender $sender
      */
     public function __construct(Sender $sender)
@@ -29,29 +31,35 @@ class TwentyFourSmsBD extends AbstractProvider
 
     /**
      * Send Request To Api and Send Message
-     * @throws GuzzleException
+     * @throws RenderException
      */
     public function sendRequest()
     {
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
 
-        $client = new Client([
-            'base_uri' => 'https://24smsbd.com/api/bulkSmsApi',
-            'timeout' => 10.0,
-            'verify' => false,
-        ]);
+        $query = [
+            'sender_id' => $config['sender_id'],
+            'recipient' => $number,
+            'message' => $text,
+        ];
 
+        $headers = [
+            'Authorization' => 'Bearer ' . $config['api_token'],
+            'Content-Type' => 'application/json'
+        ];
 
-        $response = $client->request('POST', '', [
-            'query' => [
-                'apiKey' => $config['apiKey'],
-                'sender_id' => $config['sender_id'],
-                'mobileNo' => $number,
-                'message' => $text,
-            ]
-        ]);
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+        $requestObject->setHeaders($headers)->setContentTypeJson(true);
+        $response = $requestObject->post();
+        if ($queue) {
+            return true;
+        }
 
         $body = $response->getBody();
         $smsResult = $body->getContents();
@@ -66,13 +74,13 @@ class TwentyFourSmsBD extends AbstractProvider
      */
     public function errorException()
     {
-        if (!array_key_exists('apiKey', $this->senderObject->getConfig())) {
-            throw new ParameterException('apiKey key is absent in configuration');
+        if (!array_key_exists('api_token', $this->senderObject->getConfig())) {
+            throw new ParameterException('api_token is absent in configuration');
         }
 
         if (!array_key_exists('sender_id', $this->senderObject->getConfig())) {
             throw new ParameterException('sender_id key is absent in configuration');
         }
-
     }
+
 }

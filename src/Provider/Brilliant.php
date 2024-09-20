@@ -11,12 +11,14 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use Xenon\LaravelBDSms\Facades\Request;
 use Xenon\LaravelBDSms\Handler\ParameterException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class Brilliant extends AbstractProvider
 {
+    private string $apiEndpoint ='http://sms.brilliant.com.bd:6005/api/v2/SendSMS';
+
     /**
      * Brilliant constructor.
      * @param Sender $sender
@@ -34,6 +36,10 @@ class Brilliant extends AbstractProvider
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
 
         $query = [
             'ApiKey' => $config['ApiKey'],
@@ -44,7 +50,11 @@ class Brilliant extends AbstractProvider
             'Is_Unicode' => true,
         ];
 
-        $response = Request::get('http://sms.brilliant.com.bd:6005/api/v2/SendSMS', $query);
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+        $response = $requestObject->get();
+        if ($queue) {
+            return true;
+        }
 
         $body = $response->getBody();
         $smsResult = $body->getContents();

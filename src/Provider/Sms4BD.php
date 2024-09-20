@@ -11,12 +11,14 @@
 
 namespace Xenon\LaravelBDSms\Provider;
 
-use Xenon\LaravelBDSms\Facades\Request;
 use Xenon\LaravelBDSms\Handler\RenderException;
+use Xenon\LaravelBDSms\Request;
 use Xenon\LaravelBDSms\Sender;
 
 class Sms4BD extends AbstractProvider
 {
+    private string $apiEndpoint = 'http://www.sms4bd.net';
+
     /**
      * SMS4BD constructor.
      * @param Sender $sender
@@ -34,32 +36,10 @@ class Sms4BD extends AbstractProvider
         $number = $this->senderObject->getMobile();
         $text = $this->senderObject->getMessage();
         $config = $this->senderObject->getConfig();
-
-        /*$client = new Client([
-            'base_uri' => 'http://www.sms4bd.net',
-            'timeout' => 10.0,
-        ]);
-
-        try {
-            $response = $client->request('GET', '', [
-                'query' => [
-                    'publickey' => $config['publickey'],
-                    'privatekey' => $config['privatekey'],
-                    'type' => $config['type'],
-                    'sender' => $config['sender'],
-                    'delay' => $config['delay'],
-                    'receiver' => $number,
-                    'message' => $text,
-                ]
-            ]);
-        } catch (GuzzleException $e) {
-
-            $data['number'] = $number;
-            $data['message'] = $text;
-            $report = $this->generateReport($e->getMessage(), $data);
-            return $report->getContent();
-        }
-*/
+        $queue = $this->senderObject->getQueue();
+        $queueName = $this->senderObject->getQueueName();
+        $tries=$this->senderObject->getTries();
+        $backoff=$this->senderObject->getBackoff();
 
         $query = [
             'publickey' => $config['publickey'],
@@ -71,8 +51,11 @@ class Sms4BD extends AbstractProvider
             'message' => $text,
         ];
 
-        $response = Request::get('http://www.sms4bd.net', $query);
-
+        $requestObject = new Request($this->apiEndpoint, $query, $queue, [], $queueName,$tries,$backoff);
+        $response = $requestObject->get();
+        if ($queue) {
+            return true;
+        }
         $body = $response->getBody();
         $smsResult = $body->getContents();
         $data['number'] = $number;
